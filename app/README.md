@@ -23,7 +23,7 @@ they build their own temp stores.
 
 | method · path | does |
 |---|---|
-| `POST /links` `{ "target_url": "https://…" }` | creates a short link → `201 { slug, target_url, created_at }`; a body over 64 KB gets `413` |
+| `POST /links` `{ "target_url": "https://…" }` | creates a short link → `201 { slug, target_url, created_at }`; a body over 64 KB gets `413`; over the rate limit gets `429` with `Retry-After` |
 | `GET /:slug` | records the click, `302` to the target; `404` when unknown |
 | `GET /api/links` | every link as JSON, newest first; after `npm run seed` each link also carries `owner` and `campaign_id` |
 | `GET /api/stats?since=<iso>` | `{ total_clicks, top_links, by_day, by_referrer }`, optionally from a point in time (`YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SSZ`) |
@@ -31,6 +31,7 @@ they build their own temp stores.
 | `GET /links` | list links |
 
 Every `GET` route also answers `HEAD`. A known path with another method gets `405` and an `Allow` header; an unknown path under `/api/` gets a JSON `404`.
+`POST /links` is rate-limited per client IP: at most `LINKR_RATE_LIMIT` requests (default 10) in any 60-second window, counting requests that fail validation. Over the limit the answer is `429` with `Retry-After` in seconds. `GET` routes are never limited. The counts live in memory, so a restart resets them.
 A click's country is read from the optional `x-country` request header (`unknown` when absent); referrer and device come from `Referer` and `User-Agent`.
 
 ## Layout
@@ -40,6 +41,7 @@ app/src/server.ts      routes, static pages, startup
 app/src/api/links.ts   POST /links · GET /api/links · GET /api/stats
 app/src/redirect.ts    GET /:slug
 app/src/store.ts       the JSON-file store
+app/src/ratelimit.ts   per-IP sliding-window limiter for POST /links
 app/src/validate.ts    slug + URL rules, slug generation
 app/src/web/           index.html · links.html
 app/test/              vitest

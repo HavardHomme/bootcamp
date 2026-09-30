@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createApp } from "../src/server.js";
+import { type AppOptions, createApp } from "../src/server.js";
 import { Store } from "../src/store.js";
 
 export interface TestApp {
@@ -26,10 +26,10 @@ export function removeTempStores(): void {
 }
 
 /** Start the app on a free port with an empty throwaway store; `close()` also removes that store. */
-export async function startApp(): Promise<TestApp> {
+export async function startApp(options: AppOptions = {}): Promise<TestApp> {
   const dir = mkdtempSync(join(tmpdir(), "linkr-"));
   const store = new Store(join(dir, "store.json"));
-  const server = createApp(store);
+  const server = createApp(store, options);
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const { port } = server.address() as any;
   return {
