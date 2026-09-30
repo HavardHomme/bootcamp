@@ -39,6 +39,49 @@ describe("POST /links", () => {
   });
 });
 
+describe("POST /links rate limit", () => {
+  const create = () => postJson(app.base, "/links", { target_url: "https://example.com/r" });
+
+  it("returns 429 with Retry-After on the 11th create inside a minute", async () => {
+    for (let i = 0; i < 10; i++) expect((await create()).status, `request ${i + 1}`).toBe(201);
+    const res = await create();
+    expect(res.status).toBe(429);
+    const retryAfter = Number(res.headers.get("retry-after"));
+    expect(Number.isInteger(retryAfter)).toBe(true);
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(60);
+    expect((await res.json()).error).toMatch(/too many/);
+    expect(app.store.list()).toHaveLength(10);
+  });
+
+  it("counts rejected creates too", async () => {
+    for (let i = 0; i < 10; i++) await postJson(app.base, "/links", {});
+    expect((await create()).status).toBe(429);
+  });
+
+  it("never limits GET routes", async () => {
+    for (let i = 0; i < 11; i++) await create();
+    for (const path of ["/", "/links", "/api/links", "/api/stats"]) {
+      expect((await fetch(app.base + path)).status, path).toBe(200);
+    }
+    const slug = app.store.list()[0]?.slug;
+    const res = await fetch(`${app.base}/${slug}`, { redirect: "manual" });
+    expect(res.status).toBe(302);
+  });
+
+  it("takes the limit from createApp options", async () => {
+    const small = await startApp({ rateLimit: 2 });
+    try {
+      const make = () => postJson(small.base, "/links", { target_url: "https://example.com/s" });
+      expect((await make()).status).toBe(201);
+      expect((await make()).status).toBe(201);
+      expect((await make()).status).toBe(429);
+    } finally {
+      await small.close();
+    }
+  });
+});
+
 describe("GET /:slug", () => {
   it("redirects with 302 and records the click", async () => {
     const created = await (
