@@ -46,19 +46,24 @@ function cannotLoad(file: string, reason: string): Error {
   return new Error(`cannot load linkr store file ${file}: ${reason}; ${hint}`);
 }
 
+function slugKey(slug: string): string {
+  return slug.toLowerCase();
+}
+
 /**
  * A JSON-file store. Everything is held in memory and written back on every change.
  * Good enough for a small app; not a database.
  */
 export class Store {
   private data: StoreData = { links: [], clicks: [] };
+  /** Keyed by lowercased slug: `/MyLink` and `/mylink` are the same link. */
   private readonly bySlug = new Map<string, Link>();
 
   constructor(private readonly file: string) {
     if (existsSync(file)) {
       const raw: any = loadStoreFile(file);
       this.data = { links: raw.links ?? [], clicks: raw.clicks ?? [] };
-      for (const link of this.data.links) this.bySlug.set(link.slug, link);
+      for (const link of this.data.links) this.bySlug.set(slugKey(link.slug), link);
     }
   }
 
@@ -67,11 +72,11 @@ export class Store {
   }
 
   get(slug: string): Link | undefined {
-    return this.bySlug.get(slug);
+    return this.bySlug.get(slugKey(slug));
   }
 
   has(slug: string): boolean {
-    return this.bySlug.has(slug);
+    return this.bySlug.has(slugKey(slug));
   }
 
   list(): Link[] {
@@ -79,11 +84,11 @@ export class Store {
   }
 
   add(link: Link): Link {
-    if (this.bySlug.has(link.slug)) throw new Error(`slug already exists: ${link.slug}`);
+    if (this.has(link.slug)) throw new Error(`slug already exists: ${link.slug}`);
     this.data.links.push(link);
-    this.bySlug.set(link.slug, link);
+    this.bySlug.set(slugKey(link.slug), link);
     this.flush();
-    return this.bySlug.get(link.slug)!;
+    return link;
   }
 
   recordClick(click: Click): void {
@@ -99,7 +104,7 @@ export class Store {
   replaceAll(links: Link[], clicks: Click[]): void {
     this.data = { links: [...links], clicks: [...clicks] };
     this.bySlug.clear();
-    for (const link of links) this.bySlug.set(link.slug, link);
+    for (const link of links) this.bySlug.set(slugKey(link.slug), link);
     this.flush();
   }
 

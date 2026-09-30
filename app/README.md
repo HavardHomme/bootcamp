@@ -23,8 +23,8 @@ they build their own temp stores.
 
 | method · path | does |
 |---|---|
-| `POST /links` `{ "target_url": "https://…" }` | creates a short link → `201 { slug, target_url, created_at }`; a body over 64 KB gets `413` |
-| `GET /:slug` | records the click, `302` to the target; `404` when unknown |
+| `POST /links` `{ "target_url": "https://…", "slug"?: "MyLink" }` | creates a short link → `201 { slug, target_url, created_at }`; `slug` is optional (3–32 letters, digits, `-`, `_`; generated when left out): one that breaks the rules or is reserved (`api`, `links`, `stats`) gets `400`, one already taken gets `409`; a body over 64 KB gets `413` |
+| `GET /:slug` | records the click, `302` to the target; `404` when unknown. Slugs match case-insensitively (`/MyLink` = `/mylink`) |
 | `GET /api/links` | every link as JSON, newest first; after `npm run seed` each link also carries `owner` and `campaign_id` |
 | `GET /api/stats?since=<iso>` | `{ total_clicks, top_links, by_day, by_referrer }`, optionally from a point in time (`YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SSZ`) |
 | `GET /` | create a link |

@@ -10,6 +10,11 @@ export function isValidSlug(slug: string): boolean {
   return SLUG_RE.test(slug);
 }
 
+/** Top-level route names a custom slug may not take. Slugs resolve case-insensitively, so `API` is reserved too. */
+export function isReservedSlug(slug: string): boolean {
+  return RESERVED.includes(slug.toLowerCase());
+}
+
 /** Returns an error message, or null when the value is acceptable. */
 export function validateTargetUrl(value: unknown): string | null {
   if (typeof value !== "string") return "target_url is required";
