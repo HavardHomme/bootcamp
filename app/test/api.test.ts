@@ -39,6 +39,59 @@ describe("POST /links", () => {
   });
 });
 
+describe("POST /links with a custom slug", () => {
+  it("returns 201 with the chosen slug", async () => {
+    const res = await postJson(app.base, "/links", {
+      target_url: "https://example.com/mine",
+      slug: "MyLink",
+    });
+    expect(res.status).toBe(201);
+    expect((await res.json()).slug).toBe("MyLink");
+  });
+
+  it("returns 400 for a slug that breaks the rules", async () => {
+    for (const slug of ["ab", "a".repeat(33), "has space", "path/like", "ünicode", 42]) {
+      const res = await postJson(app.base, "/links", { target_url: "https://example.com/x", slug });
+      expect(res.status, `slug=${slug}`).toBe(400);
+      expect((await res.json()).error).toMatch(/slug/);
+    }
+    expect(app.store.list()).toHaveLength(0);
+  });
+
+  it("returns 400 for a reserved word, in any case", async () => {
+    for (const slug of ["api", "links", "stats", "API", "Stats"]) {
+      const res = await postJson(app.base, "/links", { target_url: "https://example.com/x", slug });
+      expect(res.status, `slug=${slug}`).toBe(400);
+      expect((await res.json()).error).toMatch(/reserved/);
+    }
+    expect(app.store.list()).toHaveLength(0);
+  });
+
+  it("returns 409 for a slug that is taken, in any case", async () => {
+    const first = await postJson(app.base, "/links", {
+      target_url: "https://example.com/1",
+      slug: "MyLink",
+    });
+    expect(first.status).toBe(201);
+    for (const slug of ["MyLink", "mylink"]) {
+      const res = await postJson(app.base, "/links", { target_url: "https://example.com/2", slug });
+      expect(res.status, `slug=${slug}`).toBe(409);
+      expect((await res.json()).error).toMatch(/taken/);
+    }
+    expect(app.store.list()).toHaveLength(1);
+  });
+
+  it("resolves /MyLink and /mylink to the same target", async () => {
+    await postJson(app.base, "/links", { target_url: "https://example.com/same", slug: "MyLink" });
+    for (const path of ["/MyLink", "/mylink", "/MYLINK"]) {
+      const res = await fetch(app.base + path, { redirect: "manual" });
+      expect(res.status, path).toBe(302);
+      expect(res.headers.get("location")).toBe("https://example.com/same");
+    }
+    expect(app.store.clicks().map((c) => c.slug)).toEqual(["MyLink", "MyLink", "MyLink"]);
+  });
+});
+
 describe("GET /:slug", () => {
   it("redirects with 302 and records the click", async () => {
     const created = await (

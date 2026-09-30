@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Click, Link, Store } from "../store.js";
-import { generateSlug, isValidSlug, validateTargetUrl } from "../validate.js";
+import { generateSlug, isReservedSlug, isValidSlug, validateTargetUrl } from "../validate.js";
 
 /** The largest request body `readJsonBody` buffers; anything bigger is answered with 413. */
 export const MAX_BODY_BYTES = 64 * 1024;
@@ -43,7 +43,7 @@ export async function readJsonBody(req: IncomingMessage): Promise<Record<string,
   return parsed as Record<string, unknown>;
 }
 
-/** POST /links — create a short link. The slug is always generated. */
+/** POST /links — create a short link, with the caller's `slug` if given, otherwise a generated one. */
 export async function createLink(req: IncomingMessage, res: ServerResponse, store: Store) {
   let body: any;
   try {
@@ -56,8 +56,22 @@ export async function createLink(req: IncomingMessage, res: ServerResponse, stor
   const problem = validateTargetUrl((body as any).target_url);
   if (problem) return sendJson(res, 400, { error: problem });
 
-  let slug = generateSlug();
-  while (store.has(slug)) slug = generateSlug();
+  let slug: string;
+  if (body.slug !== undefined) {
+    if (typeof body.slug !== "string" || !isValidSlug(body.slug)) {
+      return sendJson(res, 400, {
+        error: "slug must be 3–32 characters: letters, digits, - and _",
+      });
+    }
+    if (isReservedSlug(body.slug)) {
+      return sendJson(res, 400, { error: `slug is reserved: ${body.slug}` });
+    }
+    if (store.has(body.slug)) return sendJson(res, 409, { error: `slug is taken: ${body.slug}` });
+    slug = body.slug;
+  } else {
+    slug = generateSlug();
+    while (store.has(slug)) slug = generateSlug();
+  }
 
   const link: Link = {
     slug,

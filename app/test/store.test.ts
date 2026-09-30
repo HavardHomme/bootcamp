@@ -26,6 +26,14 @@ describe("Store", () => {
     expect(() => store.add(link("abc123"))).toThrow(/already exists/);
   });
 
+  it("looks slugs up case-insensitively and refuses one that differs only in case", () => {
+    const store = new Store(tempStoreFile());
+    store.add(link("MyLink"));
+    expect(store.get("mylink")?.slug).toBe("MyLink");
+    expect(store.has("MYLINK")).toBe(true);
+    expect(() => store.add(link("mylink"))).toThrow(/already exists/);
+  });
+
   it("persists to disk and reloads, leaving no .tmp file behind", () => {
     const file = tempStoreFile();
     const a = new Store(file);

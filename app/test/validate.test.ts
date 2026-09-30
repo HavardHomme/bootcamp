@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateSlug, isValidSlug, validateTargetUrl } from "../src/validate.js";
+import { generateSlug, isReservedSlug, isValidSlug, validateTargetUrl } from "../src/validate.js";
 
 describe("slugs", () => {
   it("accepts letters, digits, dash and underscore between 3 and 32 chars", () => {
@@ -13,6 +13,13 @@ describe("slugs", () => {
     expect(isValidSlug("a".repeat(33))).toBe(false);
     expect(isValidSlug("has space")).toBe(false);
     expect(isValidSlug("path/like")).toBe(false);
+  });
+
+  it("flags the reserved words in any case", () => {
+    for (const word of ["api", "links", "stats", "API", "Links"]) {
+      expect(isReservedSlug(word), word).toBe(true);
+    }
+    expect(isReservedSlug("apis")).toBe(false);
   });
 
   it("generates six readable characters, deterministically for a given random source", () => {
